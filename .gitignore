@@ -1,0 +1,7 @@
+data/*.db
+data/raw/
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+*.pbix
+.env
