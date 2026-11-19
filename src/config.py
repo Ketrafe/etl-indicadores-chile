@@ -15,3 +15,13 @@ SERIES = {
 RAW_DIR = Path("data/raw")
 DB_PATH = Path("data/indicadores.db")
 FECHA_INICIO = "2020-01-01"
+
+
+
+METADATA = {
+    "dolar": {"descripcion": "Dólar observado", "unidad": "CLP por USD", "frecuencia": "Diaria"},
+    "uf": {"descripcion": "Unidad de fomento (UF)", "unidad": "CLP", "frecuencia": "Diaria"},
+    "utm": {"descripcion": "Unidad tributaria mensual (UTM)", "unidad": "CLP", "frecuencia": "Mensual"},
+    "ipc_indice": {"descripcion": "IPC general, índice base 2023=100", "unidad": "Índice", "frecuencia": "Mensual"},
+    "ipc_var_mensual": {"descripcion": "IPC general, variación mensual oficial", "unidad": "%", "frecuencia": "Mensual"},
+}
