@@ -1,0 +1,47 @@
+name: Pipeline ETL
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 12 * * 1"   # todos los lunes a las 12:00 UTC
+  workflow_dispatch:        # permite ejecutarlo a mano desde la pestaña Actions
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements-dev.txt
+      - name: Ejecutar pruebas
+        run: python -m pytest
+
+  pipeline:
+    needs: pruebas
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar dependencias
+        run: python -m pip install -r requirements.txt
+      - name: Ejecutar pipeline
+        env:
+          BCCH_TOKEN: ${{ secrets.BCCH_TOKEN }}
+        run: python src/main.py
+      - name: Resumen de resultados
+        run: |
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          python src/analisis.py >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Guardar la base de datos
+        uses: actions/upload-artifact@v4
+        with:
+          name: indicadores-db
+          path: data/indicadores.db
