@@ -1,5 +1,7 @@
 # ETL de indicadores económicos de Chile
 
+[![Pipeline ETL](https://github.com/Ketrafe/etl-indicadores-chile/actions/workflows/pipeline.yml/badge.svg)](https://github.com/Ketrafe/etl-indicadores-chile/actions/workflows/pipeline.yml)
+
 Pipeline en **Python y SQL** que descarga indicadores económicos desde la API oficial del Banco Central de Chile, los limpia, los carga a una base **SQLite con modelo en estrella** y valida su consistencia con consultas SQL.
 
 > **Resultado clave:** el IPC mensual calculado en SQL a partir del índice coincide con la serie oficial del Banco Central en los **81 meses** comparados (diferencia máxima: 0,0 puntos porcentuales).
@@ -73,8 +75,17 @@ Las vistas de `sql/vistas.sql` exponen los datos ya unidos (`v_indicadores`), la
 ## Calidad
 
 - Control de calidad en la transformación: rechaza nulos, fechas duplicadas y valores no positivos.
-- 7 pruebas automáticas con `pytest`.
+- 7 pruebas automáticas con `pytest`, ejecutadas en cada `push` mediante integración continua.
 - Registro de eventos por etapa y código de salida distinto de cero si algo falla.
+
+## Automatización
+
+Un workflow de GitHub Actions (`.github/workflows/pipeline.yml`) ejecuta:
+
+- **En cada `push`:** las pruebas.
+- **Cada lunes y bajo demanda:** pruebas, pipeline completo, un resumen de resultados en la propia ejecución y la base `indicadores.db` como artefacto descargable.
+
+El token del Banco Central se guarda como secreto del repositorio (`BCCH_TOKEN`) y nunca aparece en el código ni en los registros.
 
 ## Resultado de ejemplo
 
@@ -113,12 +124,13 @@ src/           extract, transform, load, analisis, main y config
 sql/           schema.sql (modelo) y vistas.sql
 tests/         pruebas con pytest
 exploracion/   scripts usados para descubrir la API y sus series
+.github/       workflow de GitHub Actions
 ```
 
 ## Próximos pasos
 
-- Automatizar la ejecución periódica con GitHub Actions.
 - Dashboard en Power BI conectado a la vista `v_indicadores`.
+- Carga incremental: hoy cada ejecución recarga todo el histórico.
 
 ## Autor
 
