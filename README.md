@@ -75,8 +75,9 @@ Las vistas de `sql/vistas.sql` exponen los datos ya unidos (`v_indicadores`), la
 ## Calidad
 
 - Control de calidad en la transformación: rechaza nulos, fechas duplicadas y valores no positivos.
-- 7 pruebas automáticas con `pytest`, ejecutadas en cada `push` mediante integración continua.
+- 15 pruebas automáticas con `pytest`, ejecutadas en cada `push` mediante integración continua.
 - Registro de eventos por etapa y código de salida distinto de cero si algo falla.
+- Cada ejecución y cada error quedan guardados en tablas de control (sección siguiente).
 
 ## Automatización
 
@@ -86,6 +87,25 @@ Un workflow de GitHub Actions (`.github/workflows/pipeline.yml`) ejecuta:
 - **Cada lunes y bajo demanda:** pruebas, pipeline completo, un resumen de resultados en la propia ejecución y la base `indicadores.db` como artefacto descargable.
 
 El token del Banco Central se guarda como secreto del repositorio (`BCCH_TOKEN`) y nunca aparece en el código ni en los registros.
+
+## Control y trazabilidad
+
+Además del modelo en estrella, la base guarda tres tablas de control (`sql/schema_control.sql`) que se conservan entre ejecuciones:
+
+| Tabla | Contenido |
+|---|---|
+| `meta_ejecucion` | Una fila por corrida: inicio, duración, estado (`EXITO`, `ERROR`, `INTERRUMPIDA`), filas cargadas y origen (local o GitHub Actions) |
+| `meta_serie` | Una fila por serie: última fecha cargada, cantidad de filas y ejecución que la actualizó |
+| `log_errores` | Cada error con su ejecución, etapa (extracción, transformación y carga, vistas), serie afectada y mensaje |
+
+Decisiones de diseño:
+
+- Los errores se escriben en una transacción propia: si la carga falla y se revierte, el registro del error se conserva.
+- Antes de guardar un mensaje se eliminan los secretos (token y parámetros de la URL).
+- Una ejecución que queda `EN_CURSO` y no termina se marca como `INTERRUMPIDA` en la corrida siguiente.
+- Las horas se guardan en UTC.
+
+Para ver el estado: `python src/control.py` muestra las últimas ejecuciones, los últimos errores y el estado de cada serie. En GitHub Actions cada corrida parte de una base nueva, por lo que allí las tablas reflejan solo la ejecución actual.
 
 ## Resultado de ejemplo
 
@@ -120,8 +140,8 @@ python -m pytest              # pruebas
 ## Estructura
 
 ```
-src/           extract, transform, load, analisis, main y config
-sql/           schema.sql (modelo) y vistas.sql
+src/           extract, transform, load, analisis, control, main y config
+sql/           schema.sql (modelo), schema_control.sql (control) y vistas.sql
 tests/         pruebas con pytest
 exploracion/   scripts usados para descubrir la API y sus series
 .github/       workflow de GitHub Actions
@@ -130,7 +150,8 @@ exploracion/   scripts usados para descubrir la API y sus series
 ## Próximos pasos
 
 - Dashboard en Power BI conectado a la vista `v_indicadores`.
-- Carga incremental: hoy cada ejecución recarga todo el histórico.
+- Carga incremental: hoy cada ejecución recarga todo el histórico; `meta_serie.ultima_fecha` permite pedir a la API solo los datos nuevos.
+- Conservar la base entre ejecuciones de GitHub Actions para acumular el historial de control en la nube.
 
 ## Autor
 

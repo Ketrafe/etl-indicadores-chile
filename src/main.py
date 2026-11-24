@@ -1,11 +1,12 @@
 """Orquestador: ejecuta el pipeline completo (extraer, transformar, cargar y
-crear vistas) y registra cada etapa."""
+crear vistas) y registra cada etapa, cada ejecución y cada error en la base."""
 import logging
 import sqlite3
 import sys
 import time
 from contextlib import closing
 
+import control
 from analisis import crear_vistas
 from config import DB_PATH
 from extract import ErrorExtraccion, extraer_todas
@@ -19,22 +20,44 @@ logging.basicConfig(
 log = logging.getLogger("pipeline")
 
 
+def _registrar_fallo(ejecucion_id, etapa, error, duracion):
+    """Guarda el error y cierra la ejecución. Si la base de control falla, no tapa el error original."""
+    try:
+        control.registrar_error(ejecucion_id, etapa, error)
+        control.finalizar_ejecucion(ejecucion_id, "ERROR", duracion_seg=duracion)
+    except Exception:
+        log.warning("No se pudo registrar el error en las tablas de control")
+
+
 def ejecutar():
     inicio = time.time()
-    log.info("Inicio del pipeline")
+    ejecucion_id = control.iniciar_ejecucion()
+    log.info("Inicio del pipeline (ejecución %s)", ejecucion_id)
 
-    log.info("1/3 Extracción desde la API del Banco Central")
-    extraer_todas()
+    etapa = "extraccion"
+    try:
+        log.info("1/3 Extracción desde la API del Banco Central")
+        extraer_todas()
 
-    log.info("2/3 Transformación y carga al modelo en estrella")
-    cargar()
+        etapa = "transformacion_carga"
+        log.info("2/3 Transformación y carga al modelo en estrella")
+        cargar()
 
-    log.info("3/3 Creación de vistas SQL")
-    with closing(sqlite3.connect(DB_PATH)) as con:
-        crear_vistas(con)
-        hechos = con.execute("SELECT COUNT(*) FROM fact_valor").fetchone()[0]
+        etapa = "vistas"
+        log.info("3/3 Creación de vistas SQL")
+        with closing(sqlite3.connect(DB_PATH)) as con:
+            crear_vistas(con)
+            hechos = con.execute("SELECT COUNT(*) FROM fact_valor").fetchone()[0]
 
-    log.info("Pipeline terminado en %.1f s: %s valores en fact_valor", time.time() - inicio, hechos)
+        etapa = "control"
+        control.actualizar_series(ejecucion_id)
+    except Exception as error:
+        _registrar_fallo(ejecucion_id, etapa, error, time.time() - inicio)
+        raise
+
+    duracion = time.time() - inicio
+    control.finalizar_ejecucion(ejecucion_id, "EXITO", hechos, duracion)
+    log.info("Pipeline terminado en %.1f s: %s valores en fact_valor", duracion, hechos)
 
 
 if __name__ == "__main__":
